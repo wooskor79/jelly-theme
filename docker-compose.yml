@@ -1,0 +1,16 @@
+version: '3.8'
+services:
+  jellyfin-theme-downloader:
+    build: .
+    container_name: jellyfin_theme_downloader
+    ports:
+      - "9011:9011"
+    volumes:
+      - /volume1/ShareFolder:/mnt/nas
+      # :ro를 제거하여 쓰기 권한을 부여합니다.
+      - /volume1/docker/jelly-theme/app/cookies.txt:/app/cookies.txt
+    environment:
+      - TZ=Asia/Seoul
+      - PUID=1026
+      - PGID=100
+    restart: unless-stopped

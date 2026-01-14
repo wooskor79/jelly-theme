@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>Jellyfin 테마송 다운로더</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // 테일윈드 다크모드 설정 (class 전략)
+        tailwind.config = {
+            darkMode: 'class',
+        }
+    </script>
+    <style>
+        /* 다크모드 커스텀 스타일 */
+        .dark .log-box { background: #0f111a; color: #7aa2f7; border: 1px solid #2e3c64; }
+        .log-box { background: #1a1b26; color: #9ece6a; font-family: monospace; transition: all 0.3s; }
+        
+        .dark .folder-item:hover { background: #2d3748; color: #fff; }
+        .folder-item:hover { background: #f3f4f6; cursor: pointer; }
+        
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* 토글 스위치 디자인 */
+        .switch { position: relative; display: inline-block; width: 50px; height: 24px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 24px; }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 4px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: #6366f1; }
+        input:checked + .slider:before { transform: translateX(24px); }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 min-h-screen flex items-center justify-center p-4 transition-colors duration-300">
+    <div class="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-xl w-full max-w-3xl border border-gray-200 dark:border-gray-700">
+        <h1 class="text-2xl font-bold text-center mb-6 text-gray-800 dark:text-white">Jellyfin 테마송 다운로더</h1>
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="md:col-span-2 space-y-4">
+                <input type="text" id="url" class="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-indigo-400 dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="유튜브 URL 입력">
+                <div class="flex gap-2">
+                    <input type="number" id="start" class="w-1/2 p-3 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="시작(초)">
+                    <input type="number" id="end" class="w-1/2 p-3 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="종료(초)">
+                </div>
+                <div class="border rounded-lg bg-gray-50 dark:bg-gray-900 overflow-hidden dark:border-gray-700">
+                    <div class="bg-gray-200 dark:bg-gray-700 px-4 py-2 text-xs font-bold text-blue-600 dark:text-blue-400 truncate" id="cur-path">/mnt/nas</div>
+                    <div id="dir-list" class="h-64 overflow-y-auto p-2 bg-white dark:bg-gray-800 space-y-1"></div>
+                </div>
+            </div>
+
+            <div class="flex flex-col gap-3">
+                <div class="flex items-center justify-between px-1 mb-2">
+                    <span class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Dark Mode</span>
+                    <label class="switch">
+                        <input type="checkbox" id="dark-mode-toggle" onchange="toggleDarkMode()">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <button onclick="loadDir('/mnt/nas')" class="bg-slate-700 text-white font-bold py-3 rounded-lg hover:bg-slate-800 transition-colors">최상위로 가기</button>
+                <button id="confirm-btn" onclick="confirmFolder()" class="bg-emerald-500 text-white font-bold py-3 rounded-lg hover:bg-emerald-600 transition-colors">폴더 선택</button>
+                <div class="flex-1"></div>
+                <button id="download-btn" onclick="doDownload()" disabled class="bg-indigo-600 text-white font-bold py-4 rounded-lg hover:bg-indigo-700 transition-colors">음악 다운로드</button>
+            </div>
+        </div>
+        
+        <div id="log-display" class="log-box p-4 rounded-lg h-32 overflow-y-auto text-xs whitespace-pre-wrap mt-6 shadow-inner">> 폴더를 선택해주세요.</div>
+    </div>
+
+    <script>
+        let currentViewingPath = "/mnt/nas";
+        let confirmedPath = null;
+
+        // --- 다크모드 로직 ---
+        const toggleInput = document.getElementById('dark-mode-toggle');
+        
+        // 초기 설정 확인 (기본값 다크)
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme === 'light') {
+                document.documentElement.classList.remove('dark');
+                toggleInput.checked = false;
+            } else {
+                // 저장된게 없거나 'dark'인 경우
+                document.documentElement.classList.add('dark');
+                toggleInput.checked = true;
+                localStorage.setItem('theme', 'dark');
+            }
+        }
+
+        function toggleDarkMode() {
+            if (toggleInput.checked) {
+                document.documentElement.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+                localStorage.setItem('theme', 'light');
+            }
+        }
+
+        // --- 기존 기능 로직 ---
+        async function loadDir(path) {
+            try {
+                const res = await fetch('/list_dir', { 
+                    method: 'POST', 
+                    headers: {'Content-Type': 'application/json'}, 
+                    body: JSON.stringify({path}) 
+                });
+                const data = await res.json();
+                currentViewingPath = data.current_path;
+                document.getElementById('cur-path').innerText = currentViewingPath;
+                document.getElementById('dir-list').innerHTML = data.items.map(i => `
+                    <div class="folder-item p-2 rounded flex items-center gap-3 dark:text-gray-300" ondblclick="loadDir('${i.path.replace(/\\/g, '/')}')">
+                        <span>${i.icon}</span>
+                        <span class="text-sm font-medium">${i.name}</span>
+                    </div>`).join('');
+            } catch (e) {
+                addLog("경로를 불러오는 중 오류가 발생했습니다.");
+            }
+        }
+
+        function confirmFolder() { 
+            confirmedPath = currentViewingPath; 
+            document.getElementById('download-btn').disabled = false; 
+            addLog(`폴더 확정: ${confirmedPath}`); 
+        }
+
+        async function doDownload() {
+            const url = document.getElementById('url').value;
+            if(!url) return alert("URL 입력!");
+            addLog("다운로드 시작...");
+            const res = await fetch('/download', { 
+                method: 'POST', 
+                headers: {'Content-Type': 'application/json'}, 
+                body: JSON.stringify({
+                    url, 
+                    start: document.getElementById('start').value || 0, 
+                    end: document.getElementById('end').value || 30, 
+                    path: confirmedPath
+                }) 
+            });
+            const result = await res.json();
+            addLog(result.msg + (result.log ? "\n" + result.log : ""));
+        }
+
+        function addLog(msg) { 
+            const box = document.getElementById('log-display'); 
+            box.innerText += `\n> ${msg}`; 
+            box.scrollTop = box.scrollHeight; 
+        }
+
+        // 실행
+        initTheme();
+        loadDir(currentViewingPath);
+    </script>
+</body>
+</html>
