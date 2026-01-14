@@ -1,15 +1,17 @@
-version: '3.8'
+version: "3.8"
+
 services:
-  jellyfin-theme-downloader:
+  jellyfin_theme_downloader:
     build: .
+    image: jellyfin_theme_jellyfin-theme-downloader
     container_name: jellyfin_theme_downloader
     ports:
       - "9011:9011"
     volumes:
+      # NAS 공유 폴더
       - /volume1/ShareFolder:/mnt/nas
+
+      # 쿠키 파일 (단일 파일 마운트)
       - /volume1/docker/jelly-theme/app/cookies.txt:/app/cookies.txt
-    environment:
-      - TZ=Asia/Seoul
-      - PUID=1026
-      - PGID=100
-    restart: always
+
+    restart: unless-stopped
