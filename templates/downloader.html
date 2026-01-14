@@ -49,9 +49,7 @@
                 </div>
                 <button onclick="loadDir('/mnt/nas')" class="bg-slate-700 text-white font-bold py-3 rounded-lg hover:bg-slate-800 transition-colors">최상위로 가기</button>
                 <button id="confirm-btn" onclick="confirmFolder()" class="bg-emerald-500 text-white font-bold py-3 rounded-lg hover:bg-emerald-600 transition-colors">폴더 선택</button>
-                
                 <button id="stop-btn" onclick="stopDownload()" class="bg-rose-500 text-white font-bold py-3 rounded-lg hover:bg-rose-600 transition-colors hidden">강제 작업 중지</button>
-                
                 <div class="flex-1"></div>
                 <button id="download-btn" onclick="doDownload()" disabled class="bg-indigo-600 text-white font-bold py-4 rounded-lg hover:bg-indigo-700 transition-colors">음악 다운로드</button>
             </div>
@@ -97,11 +95,17 @@
                 const data = await res.json();
                 currentViewingPath = data.current_path;
                 document.getElementById('cur-path').innerText = currentViewingPath;
-                document.getElementById('dir-list').innerHTML = data.items.map(i => `
-                    <div class="folder-item p-2 rounded flex items-center gap-3 dark:text-gray-300" ondblclick="loadDir('${i.path.replace(/\\/g, '/')}')">
+                
+                // 수정: onclick 이벤트의 따옴표 및 이스케이프 처리 개선
+                document.getElementById('dir-list').innerHTML = data.items.map(i => {
+                    const safePath = i.path.replace(/\\/g, '/');
+                    return `
+                    <div class="folder-item p-2 rounded flex items-center gap-3 dark:text-gray-300" 
+                         onclick="loadDir('${safePath}')">
                         <span>${i.icon}</span>
                         <span class="text-sm font-medium">${i.name}</span>
-                    </div>`).join('');
+                    </div>`;
+                }).join('');
             } catch (e) { addLog("오류: 경로를 불러올 수 없습니다."); }
         }
 
