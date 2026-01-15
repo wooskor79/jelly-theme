@@ -29,10 +29,21 @@
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div class="md:col-span-2 space-y-4">
                 <input type="text" id="url" class="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-indigo-400 dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="유튜브 URL 입력">
+                
                 <div class="flex gap-2">
                     <input type="number" id="start" class="w-1/2 p-3 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="시작(초)">
                     <input type="number" id="end" class="w-1/2 p-3 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="종료(초)">
                 </div>
+
+                <div class="flex items-center justify-end gap-2 px-1">
+                    <span class="text-xs text-gray-500 dark:text-gray-400">쿠키 사용 (로그인)</span>
+                    <label class="switch">
+                        <!-- 기본값을 끄기 위해 checked 속성 제거 -->
+                        <input type="checkbox" id="use-cookies">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
                 <div class="border rounded-lg bg-gray-50 dark:bg-gray-900 overflow-hidden dark:border-gray-700">
                     <div class="bg-gray-200 dark:bg-gray-700 px-4 py-2 text-xs font-bold text-blue-600 dark:text-blue-400 truncate" id="cur-path">/mnt/nas</div>
                     <div id="dir-list" class="h-64 overflow-y-auto p-2 bg-white dark:bg-gray-800 space-y-1"></div>
@@ -96,7 +107,6 @@
                 currentViewingPath = data.current_path;
                 document.getElementById('cur-path').innerText = currentViewingPath;
                 
-                // 수정: onclick 이벤트의 따옴표 및 이스케이프 처리 개선
                 document.getElementById('dir-list').innerHTML = data.items.map(i => {
                     const safePath = i.path.replace(/\\/g, '/');
                     return `
@@ -123,6 +133,9 @@
             document.getElementById('stop-btn').classList.remove('hidden');
             addLog("다운로드 시작...");
 
+            // 쿠키 사용 여부 확인
+            const useCookies = document.getElementById('use-cookies').checked;
+
             try {
                 const res = await fetch('/download', { 
                     method: 'POST', 
@@ -131,7 +144,8 @@
                         url, 
                         start: document.getElementById('start').value || 0, 
                         end: document.getElementById('end').value || 30, 
-                        path: confirmedPath
+                        path: confirmedPath,
+                        use_cookies: useCookies // 서버로 전송
                     }) 
                 });
                 const result = await res.json();

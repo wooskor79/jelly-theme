@@ -55,6 +55,7 @@ def download():
     start = data.get('start', 0)
     end = data.get('end', 30)
     target_path = data.get('path')
+    use_cookies = data.get('use_cookies', False) # 쿠키 사용 옵션
 
     if not url or not target_path:
         return jsonify({"status": "error", "msg": "URL 또는 경로가 없습니다."})
@@ -77,7 +78,8 @@ def download():
         url
     ]
 
-    if os.path.exists(COOKIES_FILE):
+    # 사용자가 쿠키 사용을 체크했고, 파일이 실제로 존재할 때만 옵션 추가
+    if use_cookies and os.path.exists(COOKIES_FILE):
         cmd.extend(["--cookies", COOKIES_FILE])
 
     try:
