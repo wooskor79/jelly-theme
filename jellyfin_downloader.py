@@ -4,33 +4,35 @@ from flask import Flask, render_template, request, jsonify
 
 app = Flask(__name__)
 
-# NAS 마운트 경로
 BASE_DIR = "/mnt/nas"
-
-# 유튜브 쿠키 파일
 COOKIES_FILE = "/app/cookies.txt"
 
+# 컨테이너 내부 Python (Flask 실행 Python과 동일)
+PYTHON_BIN = "python"
+
 current_process = None
+
 
 @app.route('/')
 def index():
     return render_template('downloader.html')
 
+
 @app.route('/list_dir', methods=['POST'])
 def list_dir():
     req_data = request.get_json()
     path = req_data.get('path') if req_data and req_data.get('path') else BASE_DIR
-    abs_path = os.path.abspath(path)
+    abs_path = os.path.realpath(path)
 
-    if not abs_path.startswith(os.path.abspath(BASE_DIR)):
-        abs_path = os.path.abspath(BASE_DIR)
+    if not abs_path.startswith(os.path.realpath(BASE_DIR)):
+        abs_path = os.path.realpath(BASE_DIR)
 
     try:
         if not os.path.exists(abs_path):
             return jsonify({"error": "경로 없음", "items": [], "current_path": abs_path}), 200
 
         items = []
-        if abs_path != os.path.abspath(BASE_DIR):
+        if abs_path != os.path.realpath(BASE_DIR):
             parent = os.path.dirname(abs_path)
             items.append({"name": ".. (상위 폴더)", "path": parent, "icon": "⬆️"})
 
@@ -46,44 +48,46 @@ def list_dir():
     except Exception as e:
         return jsonify({"error": str(e), "items": []}), 500
 
+
 @app.route('/download', methods=['POST'])
 def download():
     global current_process
     data = request.get_json()
 
     url = data.get('url')
-    start = data.get('start', 0)
-    end = data.get('end', 30)
     target_path = data.get('path')
-    use_cookies = data.get('use_cookies', False) # 쿠키 사용 옵션
+    use_cookies = data.get('use_cookies', False)
+
+    try:
+        start = int(data.get('start', 0))
+        end = int(data.get('end', 30))
+    except ValueError:
+        return jsonify({"status": "error", "msg": "시작/종료 값은 숫자여야 합니다."})
+
+    if start < 0 or end <= start:
+        return jsonify({"status": "error", "msg": "구간 값이 올바르지 않습니다."})
 
     if not url or not target_path:
         return jsonify({"status": "error", "msg": "URL 또는 경로가 없습니다."})
 
     output_file = os.path.join(target_path, "theme.mp3")
 
-    # yt-dlp 명령어 최적화
-    # m4a(ba)를 먼저 시도하고 mp3로 변환하는 것이 가장 안정적입니다.
     cmd = [
-        "python", "-m", "yt_dlp",
-        "-x",                           # 오디오 추출
-        "--audio-format", "mp3",        # mp3 변환
-        "--audio-quality", "0", 
+        PYTHON_BIN, "-m", "yt_dlp",
+        "-x",
+        "--audio-format", "mp3",
+        "--audio-quality", "0",
         "--download-sections", f"*{start}-{end}",
         "--force-overwrites",
-        "-f", "ba/best",                # 최고의 오디오 포맷 선택
-        "--no-check-certificate",
-        "--prefer-free-formats",        # 호환성 높은 포맷 우선
+        "-f", "ba/best",
         "-o", output_file,
         url
     ]
 
-    # 사용자가 쿠키 사용을 체크했고, 파일이 실제로 존재할 때만 옵션 추가
     if use_cookies and os.path.exists(COOKIES_FILE):
         cmd.extend(["--cookies", COOKIES_FILE])
 
     try:
-        # 로그 수집 방식 개선 (stderr를 stdout으로 통합)
         current_process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
@@ -103,6 +107,7 @@ def download():
     finally:
         current_process = None
 
+
 @app.route('/stop', methods=['POST'])
 def stop_download():
     global current_process
@@ -110,6 +115,7 @@ def stop_download():
         current_process.terminate()
         return jsonify({"status": "success", "msg": "중지 명령을 보냈습니다."})
     return jsonify({"status": "error", "msg": "현재 실행 중인 작업이 없습니다."})
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=9011)

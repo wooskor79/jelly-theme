@@ -14,4 +14,7 @@ services:
       # 쿠키 파일 (단일 파일 마운트)
       - /volume1/docker/jelly-theme/app/cookies.txt:/app/cookies.txt
 
+    stdin_open: true   # ← 추가
+    tty: true          # ← 추가
+
     restart: unless-stopped
